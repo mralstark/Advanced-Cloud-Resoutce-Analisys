@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Cloud Resource Analytics Dashboard</title>
+    <style>
+        :root {
+            --bg-base: #0b0f19;
+            --bg-panel: #151a28;
+            --bg-panel-hover: #1e2538;
+            --text-main: #e2e8f0;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --status-ok: #10b981;
+            --status-warn: #f59e0b;
+            --status-err: #ef4444;
+            --border-color: #1e293b;
+            --font-ui: system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            padding: 1.5rem;
+            min-height: 100vh;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { font-size: 1.5rem; font-weight: 600; color: var(--accent-blue); }
+        .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-top: 0.25rem; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .col-span-4 { grid-column: span 4; }
+        .col-span-8 { grid-column: span 8; }
+        .col-span-12 { grid-column: span 12; }
+        .col-span-6 { grid-column: span 6; }
+
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .data-table th, .data-table td {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .data-table th { background: rgba(255,255,255,0.02); color: var(--text-muted); }
+        .data-table td.dominated { background: rgba(244, 63, 94, 0.1); color: var(--accent-rose); text-decoration: line-through; }
+        
+        input[type="number"] {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            text-align: center;
+            outline: none;
+            font-size: 1rem;
+            border-bottom: 1px dashed var(--text-muted);
+        }
+        input[type="number"]:focus { background: rgba(59, 130, 246, 0.1); border-bottom-color: var(--accent-blue); }
+
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 100%;
+        }
+        .btn:hover { background: #2563eb; }
+
+        /* Allocation Bar */
+        .allocation-container { margin-top: 1rem; }
+        .allocation-bar {
+            height: 24px;
+            width: 100%;
+            border-radius: 4px;
+            background: var(--border-color);
+            display: flex;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+        .alloc-batch { background: var(--accent-blue); height: 100%; transition: width 0.5s; display: flex; align-items: center; padding-left: 0.5rem; font-size: 0.75rem; font-weight: bold;}
+        .alloc-stream { background: var(--accent-purple); height: 100%; transition: width 0.5s; display: flex; align-items: center; justify-content: flex-end; padding-right: 0.5rem; font-size: 0.75rem; font-weight: bold;}
+
+        /* Metrics & Formulas */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .kpi-card { background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); text-align: center; }
+        .kpi-value { font-size: 1.5rem; font-weight: bold; font-family: var(--font-mono); color: var(--status-ok); margin-top: 0.5rem;}
+        .kpi-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+        .formula-box {
+            background: #000;
+            border: 1px solid var(--border-color);
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent-emerald);
+            white-space: pre-wrap;
+            margin-bottom: 1rem;
+        }
+
+        /* SVG Charts */
+        .svg-wrap {
+            width: 100%;
+            height: 280px;
+            background: #000;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            position: relative;
+            margin-top: 1rem;
+            overflow: hidden;
+        }
+        .legend {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend span { display: flex; align-items: center; gap: 0.25rem; }
+        .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+        /* Terminal Logs */
+        .terminal {
+            background: #000;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 1rem;
+            border-radius: 4px;
+            height: 250px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+        .log-sys { color: var(--text-muted); }
+        .log-val { color: var(--accent-blue); }
+        .log-warn { color: var(--status-warn); }
+        .log-err { color: var(--status-err); }
+
+        /* Callouts */
+        .callout {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid var(--accent-blue);
+            padding: 1rem;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 1200px) {
+            .col-span-4, .col-span-8, .col-span-6 { grid-column: span 12; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h1>Аналитика Облачных Ресурсов (Расширенная Модель)</h1>
+        <div class="subtitle">Вариант 32 | Графоаналитика | Линейное программирование | Браун-Робинсон</div>
+    </div>
+    <div style="text-align: right; font-family: var(--font-mono); font-size: 0.85rem; color: var(--status-ok);">
+        SYSTEM.STATE = "OPTIMIZING"<br>ALGORITHM = ["MINIMAX", "SIMPLEX", "STOCHASTIC"]
+    </div>
+</header>
+
+<div class="dashboard-grid">
+    <div class="panel col-span-4">
+        <div class="panel-header">Платежная матрица (Маржа в у.е.)</div>
+        <table class="data-table" id="input-matrix">
+            <thead>
+                <tr>
+                    <th>Пул \ Паттерн</th>
+                    <th>B1: Uniform</th>
+                    <th>B2: Peak</th>
+                    <th>B3: Nightly</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th>A1: Batch</th>
+                    <td><input type="number" id="m00" value="19"></td>
+                    <td><input type="number" id="m01" value="31"></td>
+                    <td><input type="number" id="m02" value="16"></td>
+                </tr>
+                <tr>
+                    <th>A2: Streaming</th>
+                    <td><input type="number" id="m10" value="28"></td>
+                    <td><input type="number" id="m11" value="16"></td>
+                    <td><input type="number" id="m12" value="25"></td>
+                </tr>
+            </tbody>
+        </table>
+        <button class="btn" onclick="DashboardController.run()">Инициировать полный перерасчет</button>
+        
+        <div class="callout" style="margin-top: 1.5rem;">
+            <strong>Архитектура:</strong> Провайдер (А) максимизирует выигрыш. Клиент (В) минимизирует. Ищем равновесие Нэша.
+        </div>
+    </div>
+
+    <div class="panel col-span-8">
+        <div class="panel-header">Глобальные KPI и Распределение (Итог)</div>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Цена игры (V)</div>
+                <div class="kpi-value" id="kpi-v">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Maximin (α)</div>
+                <div class="kpi-value" id="kpi-alpha" style="color: var(--text-main);">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Minimax (β)</div>
+                <div class="kpi-value" id="kpi-beta" style="color: var(--text-main);">--</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Тип Равновесия</div>
+                <div class="kpi-value" id="kpi-eq" style="color: var(--accent-purple); font-size: 1.1rem;">--</div>
+            </div>
+        </div>
+
+        <div class="allocation-container">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                <span>Оптимальный Batch Пул (A1)</span>
+                <span>Оптимальный Streaming Пул (A2)</span>
+            </div>
+            <div class="allocation-bar">
+                <div class="alloc-batch" id="bar-batch" style="width: 50%;">50%</div>
+                <div class="alloc-stream" id="bar-stream" style="width: 50%;">50%</div>
+            </div>
+        </div>
+
+        <div class="allocation-container">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                <span>Паттерн клиента (Худший случай)</span>
+            </div>
+            <div class="allocation-bar" id="bar-b-container">
+                </div>
+        </div>
+    </div>
+
+    <div class="panel col-span-6">
+        <div class="panel-header">Редукция и Линейное программирование</div>
+        <div class="formula-box" id="lp-formulation">Ожидание данных...</div>
+        <div class="svg-wrap" id="chart-lp"></div>
+        <div class="legend">
+            <span><div class="swatch" style="background: rgba(37,99,235,0.4)"></div> Ограничение 1</span>
+            <span><div class="swatch" style="background: rgba(244,63,94,0.4)"></div> Ограничение 2</span>
+            <span><div class="swatch" style="background: rgba(16,185,129,0.3)"></div> Допустимая область</span>
+            <span><div class="swatch" style="background: #e2e8f0"></div> Целевая функция Z</span>
+        </div>
+    </div>
+
+    <div class="panel col-span-6">
+        <div class="panel-header">Графоаналитический метод (Смешанные стратегии)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="kpi-card" style="padding: 0.5rem;">
+                <div class="kpi-label">Ожидание A1</div>
+                <div id="eq-h1" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-blue);"></div>
+            </div>
+            <div class="kpi-card" style="padding: 0.5rem;">
+                <div class="kpi-label">Ожидание A2</div>
+                <div id="eq-h2" style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent-rose);"></div>
+            </div>
+        </div>
+        <div class="svg-wrap" id="chart-graph" style="height: 215px;"></div>
+        <div class="legend">
+            <span><div class="swatch" style="background: var(--accent-blue)"></div> Ожидание 1</span>
+            <span><div class="swatch" style="background: var(--accent-rose)"></div> Ожидание 2</span>
+            <span><div class="swatch" style="background: var(--accent-emerald)"></div> Нижняя огибающая (Гарантия)</span>
+        </div>
+    </div>
+
+    <div class="panel col-span-6">
+        <div class="panel-header">Метод фиктивного разыгрывания (Браун-Робинсон)</div>
+        <table class="data-table" style="font-size: 0.8rem; margin-bottom: 0;" id="br-table">
+            </table>
+    </div>
+
+    <div class="panel col-span-6">
+        <div class="panel-header">Сходимость Брауна-Робинсона</div>
+        <div class="svg-wrap" id="chart-br"></div>
+        <div class="legend">
+            <span><div class="swatch" style="background: var(--accent-emerald)"></div> Нижняя оценка α(k)</span>
+            <span><div class="swatch" style="background: var(--accent-rose)"></div> Верхняя оценка β(k)</span>
+            <span><div class="swatch" style="background: var(--text-main); border-radius: 50%;"></div> V (Точное)</span>
+        </div>
+    </div>
+
+    <div class="panel col-span-12">
+        <div class="panel-header">Системный Журнал Анализатора</div>
+        <div class="terminal" id="terminal-out">
+            <div class="log-sys">[SYSTEM] Initialization sequence complete.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * Advanced Core Engine implementing exact and stochastic Game Theory algorithms.
+ * Big O notations are documented per method.
+ */
+class AnalyticsEngine {
+    constructor() {
+        this.logs = [];
+    }
+
+    log(msg, type = 'sys') {
+        this.logs.push({ msg, type });
+    }
+
+    /** Find saddle point. Time: O(R*C) */
+    analyzePureStrategies(matrix) {
+        const rowMins = matrix.map(r => Math.min(...r));
+        const alpha = Math.max(...rowMins);
+        
+        const cols = matrix[0].length;
+        const colMaxs = Array.from({length: cols}, (_, c) => Math.max(matrix[0][c], matrix[1][c]));
+        const beta = Math.min(...colMaxs);
+
+        this.log(`Матрица ${matrix.length}x${cols}. Вычислен максимин (α) = ${alpha}, минимакс (β) = ${beta}`);
+        return { alpha, beta, hasSaddle: alpha === beta };
+    }
+
+    /** Dominance reduction for Player B. Time: O(C^2 * R) */
+    reduceMatrix(matrix) {
+        let cols = [0, 1, 2];
+        for(let j = 0; j < cols.length; j++) {
+            for(let k = 0; k < cols.length; k++) {
+                if(j === k || cols[j] === -1 || cols[k] === -1) continue;
+                // B is minimizing. So B prefers strictly smaller values.
+                // Col K is dominated by Col J if J's values <= K's values.
+                let dom = true;
+                for(let i = 0; i < 2; i++) {
+                    if(matrix[i][cols[j]] > matrix[i][cols[k]]) { dom = false; break; }
+                }
+                if(dom) {
+                    this.log(`Доминирование: Столбец B${cols[k]+1} строго хуже B${cols[j]+1} для Игрока B. Исключен.`, 'val');
+                    cols[k] = -1;
+                }
+            }
+        }
+        
+        const activeCols = cols.filter(c => c !== -1);
+        if(activeCols.length !== 2) throw new Error("Требуется полное симплекс-решение (не сводится к 2x2).");
+        
+        const reduced = matrix.map(r => [r[activeCols[0]], r[activeCols[1]]]);
+        return { reduced, activeCols };
+    }
+
+    /** Analytic 2x2 mixed strategy solver. Time: O(1) */
+    solveAnalytic(m) {
+        const a = m[0][0], b = m[0][1], c = m[1][0], d = m[1][1];
+        const den = a + d - b - c;
+        if(Math.abs(den) < 1e-9) throw new Error("Деление на ноль (сингулярная матрица).");
+
+        const p1 = (d - c) / den;
+        const q1 = (d - b) / den;
+        const v = (a * d - b * c) / den;
+
+        this.log(`Аналитическое решение: p* = [${p1.toFixed(3)}, ${(1-p1).toFixed(3)}], V = ${v.toFixed(3)}`, 'val');
+        return { p: [p1, 1 - p1], q: [q1, 1 - q1], v };
+    }
+
+    /** Brown-Robinson fictitious play. Time: O(K*R*C) */
+    runBrownRobinson(matrix, kMax = 15) {
+        const rows = [0];
+        const colSum = rArr => matrix[0].map((_, j) => rArr.reduce((s, r) => s + matrix[r][j], 0));
+        const rowSum = cArr => matrix.map(r => cArr.reduce((s, c) => s + r[c], 0));
+        
+        let cSums = colSum(rows);
+        const cols = [cSums[0] <= cSums[1] ? 0 : 1];
+        
+        const data = [];
+        for (let k = 1; k <= kMax; k++) {
+            const R = rowSum(cols);
+            const C = colSum(rows);
+            
+            data.push({
+                k,
+                lower: Math.min(...C) / k,
+                upper: Math.max(...R) / k,
+                pA1: rows.filter(x => x === 0).length / k,
+                qB1: cols.filter(x => x === 0).length / k
+            });
+
+            if (k === kMax) break;
+            
+            const nr = rowSum(cols);
+            rows.push(nr[0] >= nr[1] ? 0 : 1);
+            const nc = colSum(rows);
+            cols.push(nc[0] <= nc[1] ? 0 : 1);
+        }
+        return data;
+    }
+}
+
+/**
+ * Custom SVG Rendering Engine. Zero dependencies.
+ */
+class SVGBuilder {
+    static init(id, w=600, h=250) {
+        this.w = w; this.h = h;
+        this.m = { t: 20, r: 20, b: 30, l: 40 };
+        this.iw = w - this.m.l - this.m.r;
+        this.ih = h - this.m.t - this.m.b;
+        this.target = document.getElementById(id);
+        this.svg = '';
+    }
+
+    static map(x, y, xRange, yRange) {
+        const px = this.m.l + ((x - xRange[0]) / (xRange[1] - xRange[0])) * this.iw;
+        const py = this.m.t + this.ih - ((y - yRange[0]) / (yRange[1] - yRange[0])) * this.ih;
+        return [px, py];
+    }
+
+    static axes(xR, yR, yTicks) {
+        this.svg += `<line x1="${this.m.l}" y1="${this.m.t}" x2="${this.m.l}" y2="${this.h - this.m.b}" stroke="#334155" />`;
+        this.svg += `<line x1="${this.m.l}" y1="${this.h - this.m.b}" x2="${this.w - this.m.r}" y2="${this.h - this.m.b}" stroke="#334155" />`;
+        yTicks.forEach(t => {
+            const [, py] = this.map(0, t, xR, yR);
+            this.svg += `<line x1="${this.m.l}" y1="${py}" x2="${this.w - this.m.r}" y2="${py}" stroke="#1e293b" stroke-dasharray="2 4" />`;
+            this.svg += `<text x="${this.m.l - 5}" y="${py + 4}" font-size="10" fill="#64748b" text-anchor="end">${t}</text>`;
+        });
+    }
+
+    static path(pts, xR, yR, stroke, fill='none', width=2, dash='') {
+        const d = pts.map((p, i) => {
+            const [px, py] = this.map(p[0], p[1], xR, yR);
+            return `${i===0?'M':'L'}${px},${py}`;
+        }).join(' ');
+        this.svg += `<path d="${d} ${fill!=='none'?'Z':''}" stroke="${stroke}" stroke-width="${width}" fill="${fill}" ${dash?'stroke-dasharray="'+dash+'"':''} />`;
+    }
+
+    static point(x, y, xR, yR, label) {
+        const [px, py] = this.map(x, y, xR, yR);
+        this.svg += `<circle cx="${px}" cy="${py}" r="4" fill="#e2e8f0" />`;
+        this.svg += `<text x="${px + 8}" y="${py - 8}" font-size="10" fill="#e2e8f0">${label}</text>`;
+    }
+
+    static render() {
+        this.target.innerHTML = `<svg viewBox="0 0 ${this.w} ${this.h}" width="100%" height="100%">${this.svg}</svg>`;
+    }
+}
+
+/**
+ * Application Controller
+ */
+const DashboardController = {
+    getMatrix() {
+        return [
+            [parseFloat(document.getElementById('m00').value), parseFloat(document.getElementById('m01').value), parseFloat(document.getElementById('m02').value)],
+            [parseFloat(document.getElementById('m10').value), parseFloat(document.getElementById('m11').value), parseFloat(document.getElementById('m12').value)]
+        ];
+    },
+
+    renderBars(p, qArr, origCols) {
+        // Player A
+        const bA1 = (p[0] * 100).toFixed(1);
+        const bA2 = (p[1] * 100).toFixed(1);
+        document.getElementById('bar-batch').style.width = `${bA1}%`;
+        document.getElementById('bar-batch').innerText = `${bA1}%`;
+        document.getElementById('bar-stream').style.width = `${bA2}%`;
+        document.getElementById('bar-stream').innerText = `${bA2}%`;
+
+        // Player B (reconstruct full vector)
+        let qFull = [0, 0, 0];
+        qFull[origCols[0]] = qArr[0];
+        qFull[origCols[1]] = qArr[1];
+        
+        let htmlB = '';
+        const colors = ['#f43f5e', '#10b981', '#8b5cf6'];
+        const labels = ['B1', 'B2', 'B3'];
+        
+        qFull.forEach((val, i) => {
+            if(val > 0) {
+                const w = (val * 100).toFixed(1);
+                htmlB += `<div style="background: ${colors[i]}; width: ${w}%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; color: white;">${labels[i]} (${w}%)</div>`;
+            }
+        });
+        document.getElementById('bar-b-container').innerHTML = htmlB;
+    },
+
+    renderLP(m, v, activeCols) {
+        // Formulation text
+        const eq1 = `${m[0][0]}x₁ + ${m[0][1]}x₂ ≥ 1`;
+        const eq2 = `${m[1][0]}x₁ + ${m[1][1]}x₂ ≥ 1`;
+        document.getElementById('lp-formulation').innerText = 
+            `Прямая задача Игрока A (Симплекс):\nМаксимизировать v\n${m[0][0]}p₁ + ${m[0][1]}p₂ ≥ v\n${m[1][0]}p₁ + ${m[1][1]}p₂ ≥ v\np₁ + p₂ = 1\n\nЗамена: xᵢ = pᵢ/v. Цель: Z = x₁ + x₂ → min\nОграничения:\n${eq1}\n${eq2}\nx₁, x₂ ≥ 0`;
+
+        // Graph
+        SVGBuilder.init('chart-lp');
+        const xRange = [0, 0.1];
+        const yRange = [0, 0.1];
+        SVGBuilder.axes(xRange, yRange, [0.02, 0.04, 0.06, 0.08]);
+
+        const l1 = x => (1 - m[0][0]*x)/m[0][1];
+        const l2 = x => (1 - m[1][0]*x)/m[1][1];
+        const env = x => Math.max(l1(x), l2(x), 0);
+        
+        const xMax = 0.1, yMax = 0.1;
+        
+        // Polygons for regions
+        SVGBuilder.path([[0,l1(0)],[0,yMax],[xMax,yMax],[xMax,0],[1/m[0][0],0]], xRange, yRange, 'none', 'rgba(37,99,235,0.15)');
+        SVGBuilder.path([[0,l2(0)],[0,yMax],[xMax,yMax],[xMax,l2(xMax)]], xRange, yRange, 'none', 'rgba(244,63,94,0.15)');
+        
+        // Feasible
+        const intersectX = (m[1][1] - m[0][1]) / (m[0][0]*m[1][1] - m[1][0]*m[0][1]);
+        const intersectY = l1(intersectX);
+        SVGBuilder.path([[0,Math.max(l1(0),l2(0))],[0,yMax],[xMax,yMax],[xMax,env(xMax)],[intersectX,intersectY]], xRange, yRange, 'none', 'rgba(16,185,129,0.3)');
+
+        // Lines
+        SVGBuilder.path([[0, l1(0)], [xMax, l1(xMax)]], xRange, yRange, '#3b82f6', 'none', 2);
+        SVGBuilder.path([[0, l2(0)], [xMax, l2(xMax)]], xRange, yRange, '#f43f5e', 'none', 2);
+        
+        // Objective function line passing through intersection
+        const z = intersectX + intersectY;
+        SVGBuilder.path([[0, z], [z, 0]], xRange, yRange, '#e2e8f0', 'none', 2, '5 5');
+
+        SVGBuilder.point(intersectX, intersectY, xRange, yRange, `Min Z: V=${v.toFixed(2)}`);
+        SVGBuilder.render();
+    },
+
+    renderGraph(m, v) {
+        document.getElementById('eq-h1').innerText = `H₁(p) = ${m[0][0]}p + ${m[0][1]}(1-p)`;
+        document.getElementById('eq-h2').innerText = `H₂(p) = ${m[1][0]}p + ${m[1][1]}(1-p)`;
+
+        SVGBuilder.init('chart-graph');
+        const xRange = [0, 1];
+        const maxY = Math.max(m[0][0], m[0][1], m[1][0], m[1][1]) + 5;
+        const yRange = [10, maxY];
+        SVGBuilder.axes(xRange, yRange, [15, 20, 25, 30, 35]);
+
+        const h1 = p => m[0][0]*p + m[0][1]*(1-p);
+        const h2 = p => m[1][0]*p + m[1][1]*(1-p);
+        
+        SVGBuilder.path([[0, h1(0)], [1, h1(1)]], xRange, yRange, '#3b82f6', 'none', 2);
+        SVGBuilder.path([[0, h2(0)], [1, h2(1)]], xRange, yRange, '#f43f5e', 'none', 2);
+        
+        // Lower envelope
+        const envPts = [];
+        for(let p=0; p<=1; p+=0.02) envPts.push([p, Math.min(h1(p), h2(p))]);
+        SVGBuilder.path(envPts, xRange, yRange, '#10b981', 'none', 3);
+
+        const intersectP = (m[1][1] - m[0][1]) / (m[0][0] - m[0][1] - m[1][0] + m[1][1]);
+        SVGBuilder.point(intersectP, v, xRange, yRange, `Максимин: ${v.toFixed(2)}`);
+        SVGBuilder.render();
+    },
+
+    run() {
+        const engine = new AnalyticsEngine();
+        const m = this.getMatrix();
+        
+        try {
+            // 1. Minimax
+            const base = engine.analyzePureStrategies(m);
+            document.getElementById('kpi-alpha').innerText = base.alpha;
+            document.getElementById('kpi-beta').innerText = base.beta;
+
+            if(base.hasSaddle) {
+                document.getElementById('kpi-eq').innerText = "Чистые стратегии";
+                document.getElementById('kpi-v').innerText = base.alpha;
+                engine.log("Алгоритм остановлен: Седловая точка найдена.");
+                this.updateTerminal(engine.logs);
+                return;
+            }
+
+            // 2. Reduction
+            const { reduced, activeCols } = engine.reduceMatrix(m);
+            
+            // Highlight dominated col
+            const tCells = document.querySelectorAll('#input-matrix td');
+            [0,1,2].forEach(colIdx => {
+                if(!activeCols.includes(colIdx)) {
+                    tCells[colIdx].classList.add('dominated');
+                    tCells[colIdx+3].classList.add('dominated');
+                } else {
+                    tCells[colIdx].classList.remove('dominated');
+                    tCells[colIdx+3].classList.remove('dominated');
+                }
+            });
+
+            // 3. Analytic Solve
+            const res = engine.solveAnalytic(reduced);
+            document.getElementById('kpi-eq').innerText = "Смешанные стратегии";
+            document.getElementById('kpi-v').innerText = res.v.toFixed(3);
+            
+            this.renderBars(res.p, res.q, activeCols);
+            this.renderLP(reduced, res.v, activeCols);
+            this.renderGraph(reduced, res.v);
+
+            // 4. Brown Robinson
+            const brData = engine.runBrownRobinson(reduced, 15);
+            let brHtml = '<thead><tr><th>k</th><th>Low(α)</th><th>Up(β)</th><th>p(A1)</th><th>q(B2*)</th></tr></thead><tbody>';
+            brData.forEach(d => {
+                brHtml += `<tr><td>${d.k}</td><td>${d.lower.toFixed(2)}</td><td>${d.upper.toFixed(2)}</td><td>${d.pA1.toFixed(2)}</td><td>${d.qB1.toFixed(2)}</td></tr>`;
+            });
+            document.getElementById('br-table').innerHTML = brHtml + '</tbody>';
+
+            SVGBuilder.init('chart-br');
+            const xRange = [1, 15];
+            const yRange = [15, 32];
+            SVGBuilder.axes(xRange, yRange, [15, 20, 25, 30]);
+            
+            SVGBuilder.path(brData.map(d => [d.k, d.lower]), xRange, yRange, '#10b981', 'none', 2);
+            SVGBuilder.path(brData.map(d => [d.k, d.upper]), xRange, yRange, '#f43f5e', 'none', 2);
+            SVGBuilder.path([[1, res.v], [15, res.v]], xRange, yRange, '#e2e8f0', 'none', 1, '4 4');
+            SVGBuilder.render();
+
+        } catch (e) {
+            engine.log(`ОШИБКА: ${e.message}`, 'err');
+        }
+
+        this.updateTerminal(engine.logs);
+    },
+
+    updateTerminal(logs) {
+        const term = document.getElementById('terminal-out');
+        term.innerHTML = logs.map(l => `<div class="log-${l.type}">> ${l.msg}</div>`).join('');
+        term.scrollTop = term.scrollHeight;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => DashboardController.run());
+</script>
+</body>
+</html>
